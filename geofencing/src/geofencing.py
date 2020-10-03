@@ -11,8 +11,6 @@ from roscopter_msgs.msg import Failsafe
 from rosflight_msgs.msg import GNSS
 from geofencing_msgs.srv import AddGeoPoint, ClearGeofence
 
-# TODO: GPS data come in ECEF, not LLA
-
 class Geofencing():
     def __init__(self):
 
@@ -108,14 +106,12 @@ class Geofencing():
         # the subscriber
         # TODO: Make sure the first message is good?
         self.origin = self.ecef2lla(msg.position[0],msg.position[1],msg.position[2])
-        print("Origin: ", self.origin) # TODO: Remove
         self.convert_list()
         self.gps_sub_.unregister()
 
     def convert_list(self):
         # Uses the Haversine method to compute the distance between each point
         # in the list and the origin, putting the list in NE coordinates.
-        print(self.list) # TODO: Remove
         for i in range(self.num_points):
             lat = self.list[i][0]
             lon = self.list[i][1]
@@ -127,16 +123,14 @@ class Geofencing():
             e_pos = mag_e_pos * np.sign(lon-self.origin[1])
             self.list[i] = [n_pos,e_pos]
         self.converted = True
-        print("converted: ", self.list) # TODO: Remove
         return
 
 
     def get_haversine_distance(self, point):
-        # Calculates the Haversine distances between two coordinates, in meters.
+        # Calculates the Haversine distance between a given point and the 
+        # origin, in meters.
         lat1,lon1 = self.origin[0:2]
-        print("Lat1,lon1: ", lat1, lon1)
         lat2,lon2 = point[0:2]
-        print("Lat2,lon2: ", lat2, lon2)
         
         R = 6371000 # Radius of Earth, meters
 
@@ -149,19 +143,20 @@ class Geofencing():
         a = np.sin(delta_phi/2.0)**2 + np.cos(phi_1)*np.cos(phi_2)*\
             np.sin(delta_lambda/2.0)**2
         c = 2.0*np.arctan2(np.sqrt(a), np.sqrt(1-a))
-        print(c)
 
         distance = R * c # meters
 
         return distance
 
     def ecef2lla(self, x, y, z):
+        # Uses pyproj library to convert from ECEF to LLA coordinates.
         ecef = pyproj.Proj(proj='geocent', ellps='WGS84', datum='WGS84')
         lla = pyproj.Proj(proj='latlong', ellps='WGS84', datum='WGS84')
         lon, lat, alt = pyproj.transform(ecef, lla, x, y, z, radians=False)
         return [lat, lon, alt]
 
     def addPointCallback(self, req):
+        # Service to add points to the geofence.
         new_waypoint = [req.x, req.y]
         self.list.append(new_waypoint)
         self.num_points = len(self.list)
@@ -169,6 +164,7 @@ class Geofencing():
         return True
 
     def clearGeofenceCallback(self, req):
+        # Service to clear all geofence points.
         self.list = []
         self.num_points = 0
         rospy.loginfo("[geofencing] Geofence Cleared")
